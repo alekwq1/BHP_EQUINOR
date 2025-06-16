@@ -4,7 +4,7 @@ import { InfoPointData } from "../utils/types";
 type Props = {
   infoPoint: InfoPointData;
   editMode: boolean;
-  onRequestEditMode: () => void; // wywołuje App, który pokazuje okno hasła
+  onRequestEditMode: () => void;
   onSave: (updated: InfoPointData) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
@@ -13,6 +13,8 @@ type Props = {
     cameraPos: [number, number, number],
     targetPos: [number, number, number]
   ) => void;
+  // Najważniejsze! (nowy props)
+  onRequestSetPosition?: (cb: (pos: [number, number, number]) => void) => void;
 };
 
 const InfoPointDetailsPanel: React.FC<Props> = ({
@@ -24,6 +26,7 @@ const InfoPointDetailsPanel: React.FC<Props> = ({
   onClose,
   getCurrentCameraPosition,
   focusCameraOn,
+  onRequestSetPosition,
 }) => {
   // Stany edycji
   const [label, setLabel] = useState(infoPoint.label);
@@ -36,7 +39,6 @@ const InfoPointDetailsPanel: React.FC<Props> = ({
     [number, number, number] | undefined
   >(infoPoint.cameraPosition ? [...infoPoint.cameraPosition] : undefined);
 
-  // Synchronizuj stan, gdy przełączasz punkt lub wyjdziesz z edycji
   useEffect(() => {
     setLabel(infoPoint.label);
     setIcon(infoPoint.icon);
@@ -47,7 +49,6 @@ const InfoPointDetailsPanel: React.FC<Props> = ({
     );
   }, [infoPoint, editMode]);
 
-  // Po zmianie pozycji XYZ natychmiast przesuwaj kamerę
   useEffect(() => {
     if (editMode) {
       focusCameraOn(
@@ -60,17 +61,14 @@ const InfoPointDetailsPanel: React.FC<Props> = ({
     // eslint-disable-next-line
   }, [position, cameraPosition, editMode]);
 
-  // Zaokrąglanie pozycji do 1 miejsca po przecinku
   const roundArray = (arr?: [number, number, number]) =>
     arr ? arr.map((v) => Number(v.toFixed(1))) : undefined;
 
-  // Ustaw z kamery
   const handleSetCameraPosition = () => {
     const pos = getCurrentCameraPosition();
     setCameraPosition([pos[0], pos[1], pos[2]]);
   };
 
-  // Zapisz zmiany
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!label || !icon || !content) return;
@@ -135,7 +133,7 @@ const InfoPointDetailsPanel: React.FC<Props> = ({
               fontSize: 14,
             }}
           >
-            Tryb edycji
+            Edit mode
           </button>
         )}
         {editMode && (
@@ -147,11 +145,10 @@ const InfoPointDetailsPanel: React.FC<Props> = ({
               marginRight: 4,
             }}
           >
-            Tryb edycji
+            Edit mode
           </span>
         )}
       </div>
-
       {/* TREŚĆ */}
       {!editMode ? (
         <>
@@ -251,6 +248,30 @@ const InfoPointDetailsPanel: React.FC<Props> = ({
                 required
               />
             ))}
+            {/* --- PRZYCISK "Wskaż na scenie" --- */}
+            <button
+              type="button"
+              style={{
+                background: "#13b493",
+                color: "#fff",
+                border: "none",
+                borderRadius: 7,
+                padding: "5px 9px",
+                fontWeight: 600,
+                marginLeft: 4,
+                cursor: "pointer",
+                fontSize: 13,
+                letterSpacing: 0.3,
+              }}
+              title="Wskaż miejsce na scenie"
+              onClick={() => {
+                if (typeof onRequestSetPosition === "function") {
+                  onRequestSetPosition((newPos) => setPosition(newPos));
+                }
+              }}
+            >
+              🎯 Wskaż na scenie
+            </button>
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <span style={{ fontSize: 13, color: "#2261c5" }}>

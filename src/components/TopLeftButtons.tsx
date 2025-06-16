@@ -1,10 +1,8 @@
-import React from "react";
-
 type Props = {
   showIFC: boolean;
   setShowIFC: React.Dispatch<React.SetStateAction<boolean>>;
-  showPublicGlb: boolean;
-  setShowPublicGlb: React.Dispatch<React.SetStateAction<boolean>>;
+  glbModels: GLBModelSettings[];
+  setGlbModels: React.Dispatch<React.SetStateAction<GLBModelSettings[]>>;
   setUserGlbParamsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   isMobile: boolean;
 };
@@ -12,11 +10,14 @@ type Props = {
 export default function TopLeftButtons({
   showIFC,
   setShowIFC,
-  showPublicGlb,
-  setShowPublicGlb,
+  glbModels,
+  setGlbModels,
   setUserGlbParamsOpen,
   isMobile,
 }: Props) {
+  // Czy chociaż jeden model jest widoczny?
+  const anyGlbVisible = glbModels.some((m) => m.visible);
+
   return (
     <div
       style={{
@@ -74,7 +75,7 @@ export default function TopLeftButtons({
         </span>
       </div>
 
-      {/* Building GLB toggle */}
+      {/* GLB – jednym przyciskiem pokazujesz/ukrywasz wszystkie glbModels */}
       <div
         style={{
           display: "flex",
@@ -83,9 +84,9 @@ export default function TopLeftButtons({
         }}
       >
         <button
-          title={showPublicGlb ? "Hide building model" : "Show building model"}
+          title={anyGlbVisible ? "Ukryj wszystkie GLB" : "Pokaż wszystkie GLB"}
           style={{
-            background: showPublicGlb ? "#16a34a" : "#ef4444",
+            background: anyGlbVisible ? "#16a34a" : "#ef4444",
             color: "#fff",
             border: "none",
             borderRadius: "50%",
@@ -99,7 +100,11 @@ export default function TopLeftButtons({
             cursor: "pointer",
             transition: "background 0.2s",
           }}
-          onClick={() => setShowPublicGlb((v) => !v)}
+          onClick={() => {
+            setGlbModels((models) =>
+              models.map((m) => ({ ...m, visible: !anyGlbVisible }))
+            );
+          }}
         >
           🏢
         </button>

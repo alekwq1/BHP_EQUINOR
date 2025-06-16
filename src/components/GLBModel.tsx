@@ -1,6 +1,9 @@
 import { useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { degToRad } from "../utils/helpers.ts";
+
+function degToRad(deg: number) {
+  return (deg * Math.PI) / 180;
+}
 
 type GLBModelProps = {
   url: string;
@@ -12,8 +15,8 @@ type GLBModelProps = {
 
 export default function GLBModel({
   url,
-  position = [14, 0.6, -23],
-  rotation = [0, 160, 0],
+  position = [0, 0, 0],
+  rotation = [0, 0, 0],
   scale = [1, 1, 1],
   visible,
 }: GLBModelProps) {

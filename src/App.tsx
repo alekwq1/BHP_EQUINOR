@@ -1,4 +1,4 @@
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useRef, useState, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Environment, CameraControls } from "@react-three/drei";
 import { Splat } from "./splat-object";
@@ -22,18 +22,57 @@ import { useSplatLoader } from "./hooks/useSplatLoader";
 import { useAuth } from "./hooks/useAuth";
 import { InfoPointData } from "./utils/types";
 import { isMobile, getInfoPanelStyle } from "./utils/helpers";
+import PlaneClickCatcher from "./components/PlaneClickCatcher";
+
+// --- TABLICA MODELI GLB ---
+type GLBModelSettings = {
+  url: string;
+  label: string;
+  visible: boolean;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale?: [number, number, number];
+};
 
 const splatOption = {
   name: "04.06.2024",
-  url: "https://huggingface.co/Alekso/Gdynia_2025_06_08/resolve/main/08_06_2025.splat",
+  url: "https://huggingface.co/Alekso/Equinor_02_06_2025/resolve/main/Equinor_02_06_2025.splat",
   position: [0, -1, 0] as [number, number, number],
   rotation: [0, 0, 0] as [number, number, number],
   scale: [1, 1, 1] as [number, number, number],
 };
 
 function App() {
-  const { infoPoints, addInfoPoint, editInfoPoint, deleteInfoPoint } =
-    useInfoPoints();
+  // ---- Obsługa "Wskaż na scenie"
+  const [waitingForPosition, setWaitingForPosition] = useState<
+    null | ((pos: [number, number, number]) => void)
+  >(null);
+  const [glbModels, setGlbModels] = useState<GLBModelSettings[]>([
+    {
+      url: "/models/building.glb",
+      label: "Budynek bazowy",
+      visible: false,
+      position: [14, 0.6, -23],
+      rotation: [0, 160, 0],
+      scale: [1, 1, 1],
+    },
+    {
+      url: "/models/building1.glb",
+      label: "buda oraz SITEMARKS",
+      visible: false,
+      position: [79.5, -82.7, -6.2],
+      rotation: [0, 90.5, 0],
+      scale: [1, 1, 1],
+    },
+  ]);
+  // POBIERZ AKTUALNY, NAJNOWSZY infoPoints!
+  const {
+    infoPoints,
+    addInfoPoint,
+    editInfoPoint,
+    deleteInfoPoint,
+    setInfoPoints,
+  } = useInfoPoints();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showIFC, setShowIFC] = useState(false);
   const [ifcProperties, setIfcProperties] =
@@ -54,6 +93,7 @@ function App() {
   const [userGlbScale, setUserGlbScale] = useState<[number, number, number]>([
     1, 1, 1,
   ]);
+  const [hideUI, setHideUI] = useState(false);
 
   // Tryb edycji i hasło
   const [editMode, setEditMode] = useState(false);
@@ -151,6 +191,50 @@ function App() {
     return [0, 0, 0];
   };
 
+  // --- WSKAZYWANIE NA SCENIE ---
+  const handleRequestSetPosition = useCallback(
+    (cb: (pos: [number, number, number]) => void) => {
+      setWaitingForPosition(() => cb);
+    },
+    []
+  );
+
+  // --- IMPORT / EKSPORT INFOPOINTÓW ---
+  const handleExportInfoPoints = () => {
+    const dataToExport = { infoPoints: [...infoPoints] };
+    const json = JSON.stringify(dataToExport, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "infoPoints.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportInfoPoints = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result as string);
+        if (Array.isArray(data)) {
+          setInfoPoints(data);
+          alert("Zaimportowano punkty (z tablicy)!");
+        } else if (data.infoPoints && Array.isArray(data.infoPoints)) {
+          setInfoPoints(data.infoPoints);
+          alert("Zaimportowano punkty!");
+        } else {
+          alert("Nieprawidłowy plik JSON!");
+        }
+      } catch {
+        alert("Błąd podczas wczytywania pliku JSON!");
+      }
+    };
+    reader.readAsText(file);
+  };
+
   // Logowanie
   if (!isAuthenticated) {
     return (
@@ -176,189 +260,66 @@ function App() {
     >
       {showLoading && <LoadingOverlay progress={progress} />}
 
-      {/* Tryb edycji – przycisk po lewej */}
-      {!editMode && (
-        <button
-          onClick={() => setAskPassword(true)}
-          style={{
-            position: "fixed",
-            left: 14,
-            top: "50%",
-            transform: "translateY(-50%)",
-            background: "#1971c2",
-            color: "#fff",
-            border: "none",
-            borderRadius: "60px",
-            boxShadow: "0 4px 16px #1971c223",
-            padding: "14px 28px",
-            fontWeight: 700,
-            fontSize: 17,
-            zIndex: 2222,
-            cursor: "pointer",
-            letterSpacing: 1,
-            outline: "none",
-          }}
-        >
-          Tryb edycji
-        </button>
-      )}
-      {editMode && (
-        <button
-          onClick={() => {
-            setEditMode(false);
-            setEditingInfoPointId(null);
-            setPreviewInfoPointId(null);
-          }}
-          style={{
-            position: "fixed",
-            left: 14,
-            top: "50%",
-            transform: "translateY(-50%)",
-            background: "#dee2e6",
-            color: "#1971c2",
-            border: "none",
-            borderRadius: "60px",
-            boxShadow: "0 4px 16px #1971c210",
-            padding: "14px 28px",
-            fontWeight: 700,
-            fontSize: 17,
-            zIndex: 2222,
-            cursor: "pointer",
-            letterSpacing: 1,
-            outline: "none",
-          }}
-        >
-          Wyłącz edycję
-        </button>
-      )}
-
-      {/* Modal hasła do trybu edycji */}
-      {askPassword && (
+      {/* Overlay jeśli w trybie wskazywania */}
+      {waitingForPosition && (
         <div
           style={{
             position: "fixed",
-            left: 0,
-            top: 0,
-            width: "100vw",
-            height: "100vh",
-            background: "rgba(0,0,0,0.19)",
-            zIndex: 2022,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            top: 80,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "#1971c2",
+            color: "#fff",
+            fontWeight: 600,
+            fontSize: 17,
+            borderRadius: 8,
+            padding: "8px 32px",
+            zIndex: 9999,
+            pointerEvents: "none",
           }}
-          onClick={() => setAskPassword(false)}
         >
-          <form
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff",
-              borderRadius: 14,
-              boxShadow: "0 4px 24px #0003",
-              padding: "24px 28px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 15,
-              alignItems: "stretch",
-              minWidth: 240,
-            }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (passwordInput === EDIT_PASSWORD) {
-                setEditMode(true);
-                setAskPassword(false);
-                setPasswordInput("");
-              }
-            }}
-          >
-            <span style={{ fontWeight: 700, fontSize: 19, color: "#185c92" }}>
-              Tryb edycji – podaj hasło
-            </span>
-            <input
-              type="password"
-              placeholder="Hasło"
-              value={passwordInput}
-              onChange={(e) => setPasswordInput(e.target.value)}
-              style={{
-                fontSize: 16,
-                padding: "8px 13px",
-                borderRadius: 8,
-                border: "1px solid #ccc",
-              }}
-            />
-            <button
-              type="submit"
-              style={{
-                background: "#1d8af2",
-                color: "white",
-                fontWeight: 600,
-                fontSize: 16,
-                borderRadius: 8,
-                border: "none",
-                padding: "9px 20px",
-                cursor: "pointer",
-                marginTop: 3,
-              }}
-            >
-              Dalej
-            </button>
-            <button
-              type="button"
-              onClick={() => setAskPassword(false)}
-              style={{
-                marginTop: 7,
-                background: "#f2f4f7",
-                border: "none",
-                color: "#333",
-                fontSize: 14,
-                borderRadius: 7,
-                padding: "7px 12px",
-                cursor: "pointer",
-              }}
-            >
-              Anuluj
-            </button>
-          </form>
+          Kliknij na scenę, aby ustawić pozycję punktu!
         </div>
       )}
 
-      {/* Dolny lewy panel */}
-      <BottomLeftPanel
-        setShowHowToUse={setShowHowToUse}
-        showInfoPoints={showInfoPoints}
-        setShowInfoPoints={setShowInfoPoints}
-        setShowAddModal={setShowAddModal}
-        isMobile={isMobile()}
-      />
-      {showHowToUse && <HowToUseModal onClose={() => setShowHowToUse(false)} />}
-      {showAddModal && (
-        <AddInfoPointModal
-          onAdd={(point: InfoPointData) => {
-            addInfoPoint(point);
-            setShowAddModal(false);
-          }}
-          onClose={() => setShowAddModal(false)}
-        />
-      )}
-
-      {/* Kamera/fullscreen */}
-      <CameraControlsButtons
-        resetCamera={resetCamera}
-        isFullscreen={isFullscreen}
-        toggleFullscreen={() => cameraHooks.toggleFullscreen(setIsFullscreen)}
-      />
-
-      {/* Link do porównania */}
+      {/* PRZYCISK UKRYWANIA UI + Progress Compare */}
       <div
         style={{
           position: "fixed",
           right: 16,
           top: 16,
-          zIndex: 90,
+          zIndex: 10001,
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
         }}
       >
+        <button
+          onClick={() => setHideUI((v) => !v)}
+          style={{
+            background: hideUI ? "#e9ecef" : "#2190e3",
+            color: hideUI ? "#2190e3" : "white",
+            border: "none",
+            borderRadius: "50%",
+            width: 40,
+            height: 40,
+            fontSize: 23,
+            fontWeight: "bold",
+            cursor: "pointer",
+            boxShadow: "0 2px 8px #2190e322",
+            transition: "all 0.2s",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          title={
+            hideUI ? "Pokaż wszystkie przyciski" : "Ukryj wszystkie przyciski"
+          }
+        >
+          {hideUI ? "🙉" : "🙈"}
+        </button>
         <a
-          href="https://develiakopernika69.netlify.app/"
+          href="https://equinorleba.netlify.app/"
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -369,64 +330,306 @@ function App() {
             borderRadius: 9,
             padding: "7px 18px",
             textDecoration: "none",
+            display: hideUI ? "none" : "block",
           }}
         >
           ↔️ Progress Compare
         </a>
       </div>
 
-      {/* Przyciski lewy górny róg */}
-      <TopLeftButtons
-        showIFC={showIFC}
-        setShowIFC={setShowIFC}
-        showPublicGlb={showPublicGlb}
-        setShowPublicGlb={setShowPublicGlb}
-        setUserGlbParamsOpen={setUserGlbParamsOpen}
-        isMobile={isMobile()}
-      />
+      {/* --- RESZTA UI TYLKO JEŚLI !hideUI --- */}
+      {!hideUI && (
+        <>
+          {/* Tryb edycji – przycisk po lewej */}
+          <div>
+            {!editMode && (
+              <button
+                onClick={() => setAskPassword(true)}
+                style={{
+                  position: "fixed",
+                  left: 14,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "#1971c2",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "60px",
+                  boxShadow: "0 4px 16px #1971c223",
+                  padding: "14px 28px",
+                  fontWeight: 700,
+                  fontSize: 17,
+                  zIndex: 2222,
+                  cursor: "pointer",
+                  letterSpacing: 1,
+                  outline: "none",
+                }}
+              >
+                Edit mode
+              </button>
+            )}
+            {editMode && (
+              <button
+                onClick={() => {
+                  setEditMode(false);
+                  setEditingInfoPointId(null);
+                  setPreviewInfoPointId(null);
+                }}
+                style={{
+                  position: "fixed",
+                  left: 14,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "#dee2e6",
+                  color: "#1971c2",
+                  border: "none",
+                  borderRadius: "60px",
+                  boxShadow: "0 4px 16px #1971c210",
+                  padding: "14px 28px",
+                  fontWeight: 700,
+                  fontSize: 17,
+                  zIndex: 2222,
+                  cursor: "pointer",
+                  letterSpacing: 1,
+                  outline: "none",
+                }}
+              >
+                Wyłącz edycję
+              </button>
+            )}
 
-      {/* Panel uploadu GLB */}
-      {userGlbParamsOpen && (
-        <UserGlbUploadPanel
-          userGlbUrl={userGlbUrl}
-          showUserGlb={showUserGlb}
-          setShowUserGlb={setShowUserGlb}
-          setUserGlbUrl={setUserGlbUrl}
-          userGlbPos={userGlbPos}
-          setUserGlbPos={setUserGlbPos}
-          userGlbRot={userGlbRot}
-          setUserGlbRot={setUserGlbRot}
-          userGlbScale={userGlbScale}
-          setUserGlbScale={setUserGlbScale}
-          isMobile={isMobile()}
-        />
-      )}
+            {/* PANEL IMPORT/EKSPORT PUNKTÓW - tuż pod edycją */}
+            {editMode && (
+              <div
+                style={{
+                  position: "fixed",
+                  left: 14,
+                  top: "calc(50% + 90px)",
+                  zIndex: 2222,
+                  background: "#fff",
+                  borderRadius: 11,
+                  boxShadow: "0 3px 16px #0001",
+                  padding: "12px 19px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                  alignItems: "center",
+                  fontSize: 15,
+                  fontWeight: 500,
+                }}
+              >
+                <button
+                  onClick={handleExportInfoPoints}
+                  style={{
+                    background: "#228be6",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "7px 17px",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  Eksportuj punkty
+                </button>
+                <label style={{ cursor: "pointer" }}>
+                  <span
+                    style={{
+                      color: "#228be6",
+                      textDecoration: "underline",
+                      marginRight: 6,
+                    }}
+                  >
+                    Importuj punkty
+                  </span>
+                  <input
+                    type="file"
+                    accept=".json"
+                    style={{ display: "none" }}
+                    onChange={handleImportInfoPoints}
+                  />
+                </label>
+              </div>
+            )}
+          </div>
 
-      {/* IFC PROPERTIES */}
-      {showIFC && ifcProperties && (
-        <IFCPropertiesPanel
-          properties={ifcProperties}
-          onClose={() => setIfcProperties(null)}
-        />
-      )}
+          {/* Modal hasła do trybu edycji */}
+          {askPassword && (
+            <div
+              style={{
+                position: "fixed",
+                left: 0,
+                top: 0,
+                width: "100vw",
+                height: "100vh",
+                background: "rgba(0,0,0,0.19)",
+                zIndex: 2022,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              onClick={() => setAskPassword(false)}
+            >
+              <form
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  background: "#fff",
+                  borderRadius: 14,
+                  boxShadow: "0 4px 24px #0003",
+                  padding: "24px 28px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 15,
+                  alignItems: "stretch",
+                  minWidth: 240,
+                }}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (passwordInput === EDIT_PASSWORD) {
+                    setEditMode(true);
+                    setAskPassword(false);
+                    setPasswordInput("");
+                  }
+                }}
+              >
+                <span
+                  style={{ fontWeight: 700, fontSize: 19, color: "#185c92" }}
+                >
+                  Edit mode - enter password
+                </span>
+                <input
+                  type="password"
+                  placeholder="Hasło"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  style={{
+                    fontSize: 16,
+                    padding: "8px 13px",
+                    borderRadius: 8,
+                    border: "1px solid #ccc",
+                  }}
+                />
+                <button
+                  type="submit"
+                  style={{
+                    background: "#1d8af2",
+                    color: "white",
+                    fontWeight: 600,
+                    fontSize: 16,
+                    borderRadius: 8,
+                    border: "none",
+                    padding: "9px 20px",
+                    cursor: "pointer",
+                    marginTop: 3,
+                  }}
+                >
+                  Dalej
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAskPassword(false)}
+                  style={{
+                    marginTop: 7,
+                    background: "#f2f4f7",
+                    border: "none",
+                    color: "#333",
+                    fontSize: 14,
+                    borderRadius: 7,
+                    padding: "7px 12px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Anuluj
+                </button>
+              </form>
+            </div>
+          )}
 
-      {/* Panel szczegółów InfoPointa po prawej (tylko w trybie edycji!) */}
-      {editMode && editingPoint && (
-        <InfoPointDetailsPanel
-          infoPoint={editingPoint}
-          editMode={editMode}
-          onRequestEditMode={() => setAskPassword(true)}
-          onSave={(updated) => {
-            editInfoPoint(updated);
-          }}
-          onDelete={(id) => {
-            deleteInfoPoint(id);
-            setEditingInfoPointId(null);
-          }}
-          onClose={() => setEditingInfoPointId(null)}
-          getCurrentCameraPosition={getCurrentCameraPosition}
-          focusCameraOn={() => {}}
-        />
+          {/* Dolny lewy panel */}
+          <BottomLeftPanel
+            setShowHowToUse={setShowHowToUse}
+            showInfoPoints={showInfoPoints}
+            setShowInfoPoints={setShowInfoPoints}
+            setShowAddModal={setShowAddModal}
+            isMobile={isMobile()}
+          />
+          {showHowToUse && (
+            <HowToUseModal onClose={() => setShowHowToUse(false)} />
+          )}
+          {showAddModal && (
+            <AddInfoPointModal
+              onAdd={(point: InfoPointData) => {
+                addInfoPoint(point);
+                setShowAddModal(false);
+              }}
+              onClose={() => setShowAddModal(false)}
+            />
+          )}
+
+          {/* Kamera/fullscreen */}
+          <CameraControlsButtons
+            resetCamera={resetCamera}
+            isFullscreen={isFullscreen}
+            toggleFullscreen={() =>
+              cameraHooks.toggleFullscreen(setIsFullscreen)
+            }
+          />
+
+          {/* Przyciski lewy górny róg */}
+          <TopLeftButtons
+            showIFC={showIFC}
+            setShowIFC={setShowIFC}
+            glbModels={glbModels}
+            setGlbModels={setGlbModels}
+            setUserGlbParamsOpen={setUserGlbParamsOpen}
+            isMobile={isMobile()}
+          />
+
+          {/* Panel uploadu GLB */}
+          {userGlbParamsOpen && (
+            <UserGlbUploadPanel
+              userGlbUrl={userGlbUrl}
+              showUserGlb={showUserGlb}
+              setShowUserGlb={setShowUserGlb}
+              setUserGlbUrl={setUserGlbUrl}
+              userGlbPos={userGlbPos}
+              setUserGlbPos={setUserGlbPos}
+              userGlbRot={userGlbRot}
+              setUserGlbRot={setUserGlbRot}
+              userGlbScale={userGlbScale}
+              setUserGlbScale={setUserGlbScale}
+              isMobile={isMobile()}
+            />
+          )}
+
+          {/* IFC PROPERTIES */}
+          {showIFC && ifcProperties && (
+            <IFCPropertiesPanel
+              properties={ifcProperties}
+              onClose={() => setIfcProperties(null)}
+            />
+          )}
+
+          {/* Panel szczegółów InfoPointa po prawej (tylko w trybie edycji!) */}
+          {editMode && editingPoint && (
+            <InfoPointDetailsPanel
+              infoPoint={editingPoint}
+              editMode={editMode}
+              onRequestEditMode={() => setAskPassword(true)}
+              onSave={(updated) => {
+                editInfoPoint(updated);
+              }}
+              onDelete={(id) => {
+                deleteInfoPoint(id);
+                setEditingInfoPointId(null);
+              }}
+              onClose={() => setEditingInfoPointId(null)}
+              getCurrentCameraPosition={getCurrentCameraPosition}
+              focusCameraOn={() => {}}
+              // TO NAJWAŻNIEJSZE: przekazujesz callback!
+              onRequestSetPosition={handleRequestSetPosition}
+            />
+          )}
+        </>
       )}
 
       {/* CANVAS */}
@@ -453,6 +656,18 @@ function App() {
           }}
         >
           <ambientLight intensity={0.8} />
+
+          {/* KLUCZ: tylko gdy czekasz na klik */}
+          <PlaneClickCatcher
+            enabled={!!waitingForPosition}
+            onPick={(pos) => {
+              if (waitingForPosition) {
+                waitingForPosition(pos);
+                setWaitingForPosition(null);
+              }
+            }}
+          />
+
           <CameraControls
             ref={cameraControls}
             makeDefault
@@ -464,6 +679,7 @@ function App() {
             verticalDragToForward={false}
           />
           <Suspense fallback={null}>
+            {/* Gaussian Splatting + InfoPointy */}
             <group
               position={splatOption.position}
               rotation={splatOption.rotation}
@@ -483,6 +699,19 @@ function App() {
                 onClosePreview={() => setPreviewInfoPointId(null)}
               />
             </group>
+            {/* --- STAŁE MODELE GLB --- */}
+            {glbModels
+              .filter((m) => m.visible)
+              .map((m, i) => (
+                <GLBModel
+                  key={m.label + i}
+                  url={m.url}
+                  position={m.position}
+                  rotation={m.rotation}
+                  scale={m.scale || [1, 1, 1]}
+                  visible={m.visible}
+                />
+              ))}
             {showIFC && (
               <IFCModel
                 onPropertiesSelected={setIfcProperties}
