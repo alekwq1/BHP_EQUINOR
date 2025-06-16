@@ -123,7 +123,7 @@ function App() {
   const resetCamera = () => {
     cameraControls.current?.setLookAt(
       isMobile() ? 90 : 20,
-      isMobile() ? 70 : 110,
+      isMobile() ? 110 : 110,
       isMobile() ? 30 : 7.4,
       0,
       0,
@@ -655,7 +655,7 @@ function App() {
           gl={{ antialias: false }}
           dpr={isMobile() ? 2 : Math.min(window.devicePixelRatio, 2)}
           camera={{
-            position: isMobile() ? [90, 70, 30] : [20, 110, 7.4],
+            position: isMobile() ? [90, 110, 30] : [20, 110, 7.4],
             fov: isMobile() ? 36 : 60,
             near: 0.01,
             far: 500000,
