@@ -1,3 +1,6 @@
+import React from "react";
+import type { GLBModelSettings } from "../App"; // <- ścieżka do pliku z typem
+
 type Props = {
   showIFC: boolean;
   setShowIFC: React.Dispatch<React.SetStateAction<boolean>>;

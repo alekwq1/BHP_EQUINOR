@@ -1,19 +1,25 @@
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
-export default function PlaneClickCatcher({ onPick, enabled }) {
+type PlaneClickCatcherProps = {
+  onPick: (pos: [number, number, number]) => void;
+  enabled: boolean;
+};
+
+export default function PlaneClickCatcher({
+  onPick,
+  enabled,
+}: PlaneClickCatcherProps) {
   const { camera, size } = useThree();
 
-  const handlePointerDown = (e) => {
+  const handlePointerDown = (e: any) => {
     if (!enabled) return;
 
     // Nowe wersje R3F – e.unprojectedPoint
     if (e.unprojectedPoint) {
-      // Przekazujemy X, Y ignorujemy (wysokość), Z jako przód/tył
       onPick([e.unprojectedPoint.x, 0, e.unprojectedPoint.z]);
     } else {
-      // Stary fallback – ręczny raycast na płaszczyznę Y=0
-      // (bo płaszczyzna XZ w Three, Y=0 to poziom „podłogi”)
+      // Fallback – ręczny raycast na płaszczyznę Y=0 (XZ)
       const mouse = new THREE.Vector2();
       mouse.x = (e.clientX / size.width) * 2 - 1;
       mouse.y = -(e.clientY / size.height) * 2 + 1;
@@ -21,7 +27,6 @@ export default function PlaneClickCatcher({ onPick, enabled }) {
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouse, camera);
 
-      // UWAGA! Płaszczyzna Y=0 (XZ), normalka: (0,1,0)
       const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // Y=0
       const intersection = new THREE.Vector3();
       raycaster.ray.intersectPlane(plane, intersection);
