@@ -1,4 +1,4 @@
-import { Suspense, useRef, useState, useCallback } from "react";
+import { Suspense, useRef, useState, useCallback, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Environment, CameraControls } from "@react-three/drei";
 import { Splat } from "./splat-object";
@@ -47,6 +47,8 @@ function App() {
   const [waitingForPosition, setWaitingForPosition] = useState<
     null | ((pos: [number, number, number]) => void)
   >(null);
+
+  const [showSplatLoadedOverlay, setShowSplatLoadedOverlay] = useState(false);
   const [glbModels, setGlbModels] = useState<GLBModelSettings[]>([
     {
       url: "/models/building.glb",
@@ -140,6 +142,16 @@ function App() {
   } = useAuth();
 
   const { objectUrl, progress, showLoading } = useSplatLoader(splatOption.url);
+  useEffect(() => {
+    if (!showLoading && objectUrl) {
+      setShowSplatLoadedOverlay(true);
+      // Po 2 sekundach schowaj overlay
+      const timeout = setTimeout(() => {
+        setShowSplatLoadedOverlay(false);
+      }, 2000);
+      return () => clearTimeout(timeout);
+    }
+  }, [showLoading, objectUrl]);
   const cameraHooks = useCameraControls(setEditingInfoPointId);
 
   useCameraWASD(
@@ -260,7 +272,9 @@ function App() {
         zIndex: 0,
       }}
     >
-      {showLoading && <LoadingOverlay progress={progress} />}
+      {(showLoading || showSplatLoadedOverlay) && (
+        <LoadingOverlay progress={progress >= 100 ? 100 : progress} />
+      )}
 
       {/* Overlay jeśli w trybie wskazywania */}
       {waitingForPosition && (
@@ -701,19 +715,22 @@ function App() {
                 onClosePreview={() => setPreviewInfoPointId(null)}
               />
             </group>
+
             {/* --- STAŁE MODELE GLB --- */}
             {glbModels
               .filter((m) => m.visible)
               .map((m, i) => (
-                <GLBModel
-                  key={m.label + i}
-                  url={m.url}
-                  position={m.position}
-                  rotation={m.rotation}
-                  scale={m.scale || [1, 1, 1]}
-                  visible={m.visible}
-                />
+                <Suspense fallback={null} key={m.label + i}>
+                  <GLBModel
+                    url={m.url}
+                    position={m.position}
+                    rotation={m.rotation}
+                    scale={m.scale || [1, 1, 1]}
+                    visible={m.visible}
+                  />
+                </Suspense>
               ))}
+
             {showIFC && (
               <IFCModel
                 onPropertiesSelected={setIfcProperties}
@@ -721,6 +738,7 @@ function App() {
                 visible={showIFC}
               />
             )}
+
             {showPublicGlb && (
               <Suspense fallback={null}>
                 <GLBModel
@@ -732,6 +750,7 @@ function App() {
                 />
               </Suspense>
             )}
+
             {showUserGlb && userGlbUrl && (
               <Suspense fallback={null}>
                 <GLBModel
@@ -743,6 +762,7 @@ function App() {
                 />
               </Suspense>
             )}
+
             <Environment preset="city" />
           </Suspense>
         </Canvas>
