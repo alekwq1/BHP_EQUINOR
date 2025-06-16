@@ -133,7 +133,7 @@ const InfoPointDetailsPanel: React.FC<Props> = ({
               fontSize: 14,
             }}
           >
-            Edit mode
+            Tryb edycji
           </button>
         )}
         {editMode && (
@@ -145,7 +145,7 @@ const InfoPointDetailsPanel: React.FC<Props> = ({
               marginRight: 4,
             }}
           >
-            Edit mode
+            Tryb edycji
           </span>
         )}
       </div>

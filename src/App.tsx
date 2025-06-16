@@ -25,7 +25,7 @@ import { isMobile, getInfoPanelStyle } from "./utils/helpers";
 import PlaneClickCatcher from "./components/PlaneClickCatcher";
 
 // --- TABLICA MODELI GLB ---
-type GLBModelSettings = {
+export type GLBModelSettings = {
   url: string;
   label: string;
   visible: boolean;
@@ -80,7 +80,7 @@ function App() {
   const [showHowToUse, setShowHowToUse] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showInfoPoints, setShowInfoPoints] = useState(true);
-  const [showPublicGlb, setShowPublicGlb] = useState(false);
+  const [showPublicGlb] = useState(false);
   const [userGlbUrl, setUserGlbUrl] = useState<string | null>(null);
   const [showUserGlb, setShowUserGlb] = useState(true);
   const [userGlbParamsOpen, setUserGlbParamsOpen] = useState(false);
@@ -212,11 +212,13 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
-  const handleImportInfoPoints = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const handleImportInfoPoints = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target?.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
     const reader = new FileReader();
     reader.onload = (ev) => {
+      if (!ev.target) return;
       try {
         const data = JSON.parse(ev.target.result as string);
         if (Array.isArray(data)) {
@@ -660,7 +662,7 @@ function App() {
           {/* KLUCZ: tylko gdy czekasz na klik */}
           <PlaneClickCatcher
             enabled={!!waitingForPosition}
-            onPick={(pos) => {
+            onPick={(pos: [number, number, number]) => {
               if (waitingForPosition) {
                 waitingForPosition(pos);
                 setWaitingForPosition(null);
