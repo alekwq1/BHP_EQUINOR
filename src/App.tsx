@@ -56,6 +56,7 @@ function App() {
   >(null);
 
   const [showSplatLoadedOverlay, setShowSplatLoadedOverlay] = useState(false);
+  const [showSplat, setShowSplat] = useState(false); // SPLAT domyślnie ukryty
   const [glbModels, setGlbModels] = useState<GLBModelSettings[]>([
     {
       url: "/models/building.glb",
@@ -65,12 +66,21 @@ function App() {
       rotation: [0, 160, 0],
       scale: [1, 1, 1],
     },
+
     {
       url: "/models/building1.glb",
       label: "buda oraz SITEMARKS",
       visible: false,
       position: [79.5, -82.7, -6.2],
       rotation: [0, 90.5, 0],
+      scale: [1, 1, 1],
+    },
+    {
+      url: "/models/building2.glb",
+      label: "mesh listopad",
+      visible: true,
+      position: [-8.7, 2.1, 3],
+      rotation: [0, 90, 0],
       scale: [1, 1, 1],
     },
   ]);
@@ -341,6 +351,24 @@ function App() {
         >
           {hideUI ? "🙉" : "🙈"}
         </button>
+
+        {/* --- TU WKLEJASZ NOWY PRZYCISK --- */}
+        {!hideUI && (
+          <button
+            onClick={() => setShowSplat((v) => !v)}
+            style={{
+              background: showSplat ? "#dee2e6" : "#1971c2",
+              color: showSplat ? "#1971c2" : "white",
+              border: "none",
+              borderRadius: 9,
+              padding: "8px 18px",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            {showSplat ? "Ukryj splat" : "Pokaż splat"}
+          </button>
+        )}
         <a
           href="https://equinorleba.netlify.app/"
           target="_blank"
@@ -707,16 +735,18 @@ function App() {
           {/* JEDEN, zewnętrzny Suspense otwarty i ZAMKNIĘTY */}
           <Suspense fallback={null}>
             {/* 1) Splat w swojej grupie – tylko on się przesuwa */}
-            <group
-              position={splatOption.position}
-              rotation={splatOption.rotation} // jeśli podajesz stopnie, skonwertuj do radianów
-              scale={splatOption.scale}
-            >
-              <Splat
-                url={objectUrl}
-                maxSplats={isMobile() ? 5_000_000 : 10_000_000}
-              />
-            </group>
+            {showSplat && (
+              <group
+                position={splatOption.position}
+                rotation={splatOption.rotation}
+                scale={splatOption.scale}
+              >
+                <Splat
+                  url={objectUrl}
+                  maxSplats={isMobile() ? 5_000_000 : 10_000_000}
+                />
+              </group>
+            )}
 
             {/* 2) InfoPointy poza grupą splata (world-space) */}
             <InfoPointCanvasGroup
